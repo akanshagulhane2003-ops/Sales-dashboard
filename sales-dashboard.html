@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sales & Revenue Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f5f5f3;
+      --surface: #ffffff;
+      --surface2: #f0eeea;
+      --text: #1a1a18;
+      --text2: #6b6a65;
+      --border: rgba(0,0,0,0.12);
+      --border2: rgba(0,0,0,0.22);
+      --blue: #185FA5;
+      --blue-light: #E6F1FB;
+      --blue-text: #0C447C;
+      --green: #3B6D11;
+      --green-light: #EAF3DE;
+      --green-text: #27500A;
+      --amber: #854F0B;
+      --red: #A32D2D;
+      --red-light: #FCEBEB;
+      --radius: 8px;
+      --radius-lg: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1a;
+        --surface: #252523;
+        --surface2: #2e2e2b;
+        --text: #f0eeea;
+        --text2: #9a9890;
+        --border: rgba(255,255,255,0.1);
+        --border2: rgba(255,255,255,0.2);
+        --blue-light: #042C53;
+        --blue-text: #B5D4F4;
+        --green-light: #173404;
+        --green-text: #C0DD97;
+        --red-light: #501313;
+      }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0;
+    }
+    .topbar {
+      background: var(--surface);
+      border-bottom: 0.5px solid var(--border);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar-brand {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .topbar-brand span {
+      width: 28px; height: 28px;
+      background: var(--blue);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 14px;
+    }
+    .topbar-actions { display: flex; align-items: center; gap: 8px; }
+    .main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
+    .page-hdr {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      flex-wrap: wrap; gap: 10px; margin-bottom: 1.25rem;
+    }
+    .page-title { font-size: 20px; font-weight: 500; color: var(--text); }
+    .page-sub { font-size: 13px; color: var(--text2); margin-top: 3px; }
+    .steps { display: flex; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .step {
+      font-size: 12px; padding: 4px 14px; border-radius: 20px;
+      background: var(--surface2); color: var(--text2);
+      border: 0.5px solid var(--border);
+    }
+    .step.done { background: var(--green-light); color: var(--green-text); border-color: transparent; }
+    .step.active { background: var(--blue-light); color: var(--blue-text); border-color: transparent; }
+
+    /* Buttons */
+    .btn { font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; border-radius: var(--radius); transition: all .15s; }
+    .btn-primary { background: var(--blue); color: #fff; border: none; padding: 8px 18px; }
+    .btn-primary:hover { background: var(--blue-text); }
+    .btn-sec { background: var(--surface2); color: var(--text2); border: 0.5px solid var(--border2); padding: 7px 14px; }
+    .btn-sec:hover { background: var(--surface); }
+    .btn-sm { font-size: 12px; padding: 5px 12px; }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 1.5px dashed var(--border2);
+      border-radius: var(--radius-lg);
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      background: var(--surface2);
+      margin-bottom: 1.25rem;
+    }
+    .drop-zone:hover, .drop-zone.drag { border-color: var(--blue); background: var(--blue-light); }
+    .drop-icon { font-size: 36px; margin-bottom: 10px; }
+    .drop-title { font-size: 15px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+    .drop-sub { font-size: 13px; color: var(--text2); }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1rem 1.25rem;
+    }
+    .card-hdr {
+      font-size: 11px; font-weight: 500; color: var(--text2);
+      text-transform: uppercase; letter-spacing: .05em;
+      margin-bottom: 1rem;
+    }
+
+    /* KPI grid */
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 1.25rem; }
+    .kpi { background: var(--surface2); border-radius: var(--radius); padding: 14px 16px; }
+    .kpi-lbl { font-size: 12px; color: var(--text2); margin-bottom: 6px; }
+    .kpi-val { font-size: 22px; font-weight: 500; color: var(--text); }
+    .kpi-chg { font-size: 12px; margin-top: 4px; }
+    .up { color: var(--green); } .dn { color: var(--red); }
+
+    /* Quarter pills */
+    .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+    .pill {
+      font-size: 12px; padding: 5px 14px; border-radius: 20px;
+      border: 0.5px solid var(--border2);
+      background: var(--surface2); color: var(--text2);
+      cursor: pointer; transition: all .15s;
+    }
+    .pill.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+    /* Layout rows */
+    .row2 { display: grid; grid-template-columns: 3fr 2fr; gap: 12px; margin-bottom: 12px; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+
+    /* Product bars */
+    .prod-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .prod-name { font-size: 13px; color: var(--text); width: 110px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-bg { flex: 1; background: var(--surface2); border-radius: 4px; height: 8px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width .6s ease; }
+    .prod-val { font-size: 12px; color: var(--text2); width: 60px; text-align: right; flex-shrink: 0; }
+
+    /* Region rows */
+    .reg-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 0; border-bottom: 0.5px solid var(--border);
+    }
+    .reg-row:last-child { border-bottom: none; }
+    .reg-name { font-size: 13px; color: var(--text); }
+    .reg-rev { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .badge { font-size: 11px; padding: 3px 9px; border-radius: 10px; }
+    .badge-g { background: var(--green-light); color: var(--green-text); }
+    .badge-a { background: #FAEEDA; color: var(--amber); }
+    .badge-r { background: var(--red-light); color: var(--red); }
+
+    /* Field mapping */
+    .field-map { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1.25rem; }
+    .field-row { display: flex; flex-direction: column; gap: 4px; }
+    .field-lbl { font-size: 12px; color: var(--text2); }
+    select {
+      font-size: 13px; padding: 7px 10px;
+      border-radius: var(--radius); border: 0.5px solid var(--border2);
+      background: var(--surface2); color: var(--text);
+      width: 100%; font-family: inherit;
+    }
+    select:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+    /* Table preview */
+    .tbl-wrap { overflow-x: auto; max-height: 180px; overflow-y: auto; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th {
+      text-align: left; padding: 6px 10px;
+      border-bottom: 0.5px solid var(--border2);
+      color: var(--text2); font-weight: 500;
+      position: sticky; top: 0; background: var(--surface);
+    }
+    td { padding: 6px 10px; border-bottom: 0.5px solid var(--border); color: var(--text); }
+    tr:last-child td { border-bottom: none; }
+
+    /* Legend */
+    .legend { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    .leg-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); }
+    .leg-sq { width: 10px; height: 10px; border-radius: 2px; }
+
+    /* Format info */
+    .format-info {
+      background: var(--blue-light); border-radius: var(--radius);
+      padding: 10px 14px; margin-top: 10px; font-size: 12px; color: var(--blue-text);
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--blue); color: #fff;
+      padding: 10px 18px; border-radius: var(--radius);
+      font-size: 13px; opacity: 0; transition: opacity .3s;
+      pointer-events: none; z-index: 9999;
+      box-shadow: 0 4px 20px rgba(0,0,0,.2);
+    }
+    .toast.show { opacity: 1; }
+
+    /* Divider */
+    .divider { height: 0.5px; background: var(--border); margin: 1rem 0; }
+
+    @media (max-width: 700px) {
+      .row2, .row3 { grid-template-columns: 1fr; }
+      .field-map { grid-template-columns: 1fr; }
+      .main { padding: 1rem 1rem 3rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-brand">
+    <span>📊</span> Sales & Revenue Dashboard
+  </div>
+  <div class="topbar-actions">
+    <span id="data-label" style="font-size:12px;color:var(--text2);">Sample data</span>
+    <button class="btn btn-sec btn-sm" onclick="resetImport()">&#8635; Reset</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Page header -->
+  <div class="page-hdr" style="margin-top:1rem;">
+    <div>
+      <div class="page-title">Sales & Revenue Analysis</div>
+      <div class="page-sub" id="period-label">FY 2025 — All periods</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <div class="filters" id="quarter-filters">
+        <span class="pill active" onclick="setFilter(this,'Q1')">Q1</span>
+        <span class="pill" onclick="setFilter(this,'Q2')">Q2</span>
+        <span class="pill" onclick="setFilter(this,'Q3')">Q3</span>
+        <span class="pill" onclick="setFilter(this,'Q4')">Q4</span>
+        <span class="pill" onclick="setFilter(this,'All')">All Year</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps">
+    <span class="step active" id="s1">① Upload file</span>
+    <span class="step" id="s2">② Map columns</span>
+    <span class="step" id="s3">③ View results</span>
+  </div>
+
+  <!-- PANEL 1: Upload -->
+  <div id="upload-panel">
+    <div class="drop-zone" id="dropZone"
+      onclick="document.getElementById('fileInput').click()"
+      ondragover="onDrag(event,true)"
+      ondragleave="onDrag(event,false)"
+      ondrop="onDrop(event)">
+      <div class="drop-icon">📂</div>
+      <div class="drop-title">Drop your CSV or Excel file here</div>
+      <div class="drop-sub">or click to browse &nbsp;·&nbsp; .csv, .xls, .xlsx supported</div>
+    </div>
+    <input type="file" id="fileInput" accept=".csv,.xls,.xlsx" style="display:none" onchange="handleFile(this.files[0])">
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;">
+      <span style="font-size:12px;color:var(--text2);">Don't have a file?</span>
+      <button class="btn btn-sec btn-sm" onclick="loadSample()">Load sample data</button>
+      <button class="btn btn-primary btn-sm" onclick="showSampleDashboard()">View sample dashboard →</button>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">Expected CSV format</div>
+      <div class="tbl-wrap">
+        <table>
+          <tr><th>date</th><th>product</th><th>region</th><th>revenue</th><th>orders</th></tr>
+          <tr><td>2025-01-15</td><td>Enterprise Suite</td><td>North America</td><td>45000</td><td>12</td></tr>
+          <tr><td>2025-01-22</td><td>Pro License</td><td>Europe</td><td>18000</td><td>47</td></tr>
+          <tr><td>2025-02-03</td><td>Hardware Kit</td><td>Asia Pacific</td><td>9200</td><td>25</td></tr>
+        </table>
+      </div>
+      <div class="format-info" style="margin-top:10px;">
+        💡 Column names don't have to match exactly — you'll map them in step 2. Revenue can include $ signs and commas.
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 2: Map columns -->
+  <div id="map-panel" style="display:none;">
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-hdr">Preview — <span id="preview-rows"></span></div>
+      <div class="tbl-wrap" id="preview-table"></div>
+    </div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-hdr">Map your columns to dashboard fields</div>
+      <div class="field-map">
+        <div class="field-row"><div class="field-lbl">📅 Date / Month column *</div><select id="col-date"></select></div>
+        <div class="field-row"><div class="field-lbl">💰 Revenue / Sales column *</div><select id="col-rev"></select></div>
+        <div class="field-row"><div class="field-lbl">📦 Product / Category column</div><select id="col-prod"></select></div>
+        <div class="field-row"><div class="field-lbl">🌍 Region / Location column</div><select id="col-reg"></select></div>
+        <div class="field-row"><div class="field-lbl">🛒 Orders / Quantity column</div><select id="col-ord"></select></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" onclick="applyData()">Apply & visualize →</button>
+        <button class="btn btn-sec" onclick="resetImport()">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 3: Dashboard results -->
+  <div id="results-panel" style="display:none;">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="row2">
+      <div class="card">
+        <div class="card-hdr">Revenue trend</div>
+        <div class="legend">
+          <span class="leg-item"><span class="leg-sq" style="background:#185FA5"></span>Revenue</span>
+          <span class="leg-item"><span class="leg-sq" style="background:#3B6D11"></span>Target</span>
+        </div>
+        <div style="position:relative;height:230px;">
+          <canvas id="trendChart" role="img" aria-label="Revenue trend bar chart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hdr">Revenue mix</div>
+        <div style="position:relative;height:170px;margin-bottom:12px;">
+          <canvas id="pieChart" role="img" aria-label="Revenue mix donut chart"></canvas>
+        </div>
+        <div class="legend" id="pie-legend" style="flex-direction:column;gap:6px;"></div>
+      </div>
+    </div>
+
+    <div class="row3">
+      <div class="card">
+        <div class="card-hdr">Top products / categories</div>
+        <div id="products"></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr">Regional performance</div>
+        <div id="regions"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">Revenue by region — bar chart</div>
+      <div style="position:relative;height:220px;">
+        <canvas id="regionChart" role="img" aria-label="Revenue by region horizontal bar chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── State ── */
+let parsedRows = [], headers = [], tChart, pChart, rChart, curFilter = 'Q1';
+const COLORS = ['#185FA5','#3B6D11','#854F0B','#A32D2D','#0F6E56','#533AB7'];
+
+/* ── Sample data ── */
+const SAMPLE_DATA = {
+  Q1:{rev:1.24,orders:3240,aov:382,conv:3.2,chgR:12,chgO:8,months:['Jan','Feb','Mar'],revenue:[980,1100,1240],target:[1050,1050,1100]},
+  Q2:{rev:1.58,orders:4120,aov:384,conv:3.5,chgR:18,chgO:14,months:['Apr','May','Jun'],revenue:[1380,1490,1580],target:[1300,1400,1500]},
+  Q3:{rev:1.43,orders:3870,aov:369,conv:3.1,chgR:-5,chgO:-3,months:['Jul','Aug','Sep'],revenue:[1350,1280,1430],target:[1450,1450,1450]},
+  Q4:{rev:2.07,orders:5540,aov:374,conv:3.9,chgR:32,chgO:27,months:['Oct','Nov','Dec'],revenue:[1720,2070,2070],target:[1600,1800,2000]},
+  All:{rev:6.32,orders:16770,aov:377,conv:3.4,chgR:14,chgO:11,months:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],revenue:[980,1100,1240,1380,1490,1580,1350,1280,1430,1720,2070,2070],target:[1050,1050,1100,1300,1400,1500,1450,1450,1450,1600,1800,2000]}
+};
+const SAMPLE_PRODS=[{name:'Enterprise Suite',val:2.1,pct:33},{name:'Pro License',val:1.6,pct:25},{name:'Hardware Kit',val:1.14,pct:18},{name:'Support Plan',val:0.89,pct:14},{name:'Analytics Add-on',val:0.63,pct:10}];
+const SAMPLE_REGIONS=[{name:'North America',rev:'$3.2M',growth:'+18%',cls:'badge-g'},{name:'Europe',rev:'$1.8M',growth:'+11%',cls:'badge-g'},{name:'Asia Pacific',rev:'$0.9M',growth:'+24%',cls:'badge-g'},{name:'Latin America',rev:'$0.3M',growth:'-3%',cls:'badge-r'},{name:'Middle East',rev:'$0.12M',growth:'+6%',cls:'badge-a'}];
+
+/* ── Utilities ── */
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+function fmt(v,prefix='$'){if(v>=1e6)return prefix+(v/1e6).toFixed(2)+'M';if(v>=1e3)return prefix+(v/1e3).toFixed(1)+'k';return prefix+Math.round(v);}
+function toNum(v){return parseFloat((v||'0').toString().replace(/[^0-9.\-]/g,''))||0;}
+
+/* ── Steps ── */
+function setStep(n){
+  [1,2,3].forEach(i=>{const e=document.getElementById('s'+i);e.className='step'+(i<n?' done':i===n?' active':'');});
+  document.getElementById('upload-panel').style.display=n===1?'':'none';
+  document.getElementById('map-panel').style.display=n===2?'':'none';
+  document.getElementById('results-panel').style.display=n===3?'':'none';
+  document.getElementById('quarter-filters').style.display=n===3&&parsedRows.length===0?'flex':'none';
+}
+
+/* ── Drag & drop ── */
+function onDrag(e,on){e.preventDefault();document.getElementById('dropZone').className='drop-zone'+(on?' drag':'');}
+function onDrop(e){e.preventDefault();onDrag(e,false);if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);}
+
+/* ── File handling ── */
+function handleFile(file){
+  if(!file)return;
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){const r=new FileReader();r.onload=e=>parseCSV(e.target.result);r.readAsText(file);}
+  else if(ext==='xlsx'||ext==='xls'){const r=new FileReader();r.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];parseCSV(XLSX.utils.sheet_to_csv(ws));};r.readAsArrayBuffer(file);}
+  else{toast('Unsupported file. Use CSV, XLS, or XLSX.');}
+}
+
+function parseCSV(text){
+  const lines=text.trim().split(/\r?\n/);
+  if(lines.length<2){toast('File is empty or has only headers.');return;}
+  headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,''));
+  parsedRows=lines.slice(1).filter(l=>l.trim()).map(l=>{
+    const vals=[];let cur='',inQ=false;
+    for(const c of l){if(c==='"'){inQ=!inQ;}else if(c===','&&!inQ){vals.push(cur.trim());cur='';}else{cur+=c;}}
+    vals.push(cur.trim());
+    const row={};headers.forEach((h,i)=>row[h]=(vals[i]||'').replace(/^"|"$/g,''));
+    return row;
+  });
+  showMapStep();
+}
+
+function autoGuess(kws){return headers.find(h=>kws.some(k=>h.toLowerCase().includes(k)))||'';}
+
+function showMapStep(){
+  document.getElementById('preview-rows').textContent=parsedRows.length+' rows detected';
+  const sample=parsedRows.slice(0,5);
+  document.getElementById('preview-table').innerHTML='<table><tr>'+headers.map(h=>`<th>${h}</th>`).join('')+'</tr>'+sample.map(r=>'<tr>'+headers.map(h=>`<td>${r[h]||''}</td>`).join('')+'</tr>').join('')+'</table>';
+  const opt=(extra)=>'<option value="">'+extra+'</option>'+headers.map(h=>`<option value="${h}">${h}</option>`).join('');
+  ['col-date','col-rev','col-prod','col-reg','col-ord'].forEach(id=>document.getElementById(id).innerHTML=opt('— select —'));
+  document.getElementById('col-date').value=autoGuess(['date','month','period','time','week','day','year']);
+  document.getElementById('col-rev').value=autoGuess(['rev','sales','amount','total','value','price','income','turnover']);
+  document.getElementById('col-prod').value=autoGuess(['product','category','item','name','sku','type']);
+  document.getElementById('col-reg').value=autoGuess(['region','country','location','area','territory','city','state']);
+  document.getElementById('col-ord').value=autoGuess(['order','qty','quantity','count','units','num']);
+  setStep(2);
+}
+
+/* ── Apply imported data ── */
+function applyData(){
+  const dc=document.getElementById('col-date').value;
+  const rc=document.getElementById('col-rev').value;
+  const pc=document.getElementById('col-prod').value;
+  const rgc=document.getElementById('col-reg').value;
+  const oc=document.getElementById('col-ord').value;
+  if(!dc||!rc){toast('Please map at least Date and Revenue columns.');return;}
+
+  const periodMap={},prodMap={},regMap={};
+  let totalRev=0,totalOrders=0;
+  parsedRows.forEach(r=>{
+    const period=(r[dc]||'Unknown').substring(0,7);
+    const rev=toNum(r[rc]);
+    const ord=oc?toNum(r[oc]):1;
+    const prod=pc?r[pc]||'Unknown':'Unknown';
+    const reg=rgc?r[rgc]||'Other':null;
+    periodMap[period]=(periodMap[period]||0)+rev;
+    prodMap[prod]=(prodMap[prod]||0)+rev;
+    if(reg)regMap[reg]=(regMap[reg]||0)+rev;
+    totalRev+=rev;totalOrders+=ord;
+  });
+
+  const periods=Object.keys(periodMap).sort();
+  const topProds=Object.entries(prodMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const topRegs=Object.entries(regMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const aov=totalOrders>0?totalRev/totalOrders:0;
+
+  /* KPIs */
+  document.getElementById('kpis').innerHTML=[
+    {lbl:'Total Revenue',val:fmt(totalRev)},
+    {lbl:'Total Orders',val:Math.round(totalOrders).toLocaleString()},
+    {lbl:'Avg Order Value',val:fmt(aov)},
+    {lbl:'Data Rows',val:parsedRows.length.toLocaleString()},
+    {lbl:'Periods',val:periods.length},
+    {lbl:'Products',val:Object.keys(prodMap).length},
+  ].map(k=>`<div class="kpi"><div class="kpi-lbl">${k.lbl}</div><div class="kpi-val">${k.val}</div></div>`).join('');
+
+  /* Products */
+  const maxP=topProds[0]?topProds[0][1]:1;
+  document.getElementById('products').innerHTML=topProds.map(([name,val],i)=>
+    `<div class="prod-row"><div class="prod-name" title="${name}">${name}</div><div class="bar-bg"><div class="bar-fill" style="width:${Math.round(val/maxP*100)}%;background:${COLORS[i%COLORS.length]}"></div></div><div class="prod-val">${fmt(val)}</div></div>`
+  ).join('');
+
+  /* Regions list */
+  document.getElementById('regions').innerHTML=topRegs.map(([name,val])=>{
+    const pct=((val/totalRev)*100).toFixed(0);
+    return `<div class="reg-row"><div><div class="reg-name">${name}</div><div class="reg-rev">${fmt(val)}</div></div><span class="badge badge-g">${pct}%</span></div>`;
+  }).join('');
+
+  /* Pie legend */
+  document.getElementById('pie-legend').innerHTML=topProds.slice(0,5).map(([name,val],i)=>
+    `<span class="leg-item"><span class="leg-sq" style="background:${COLORS[i%COLORS.length]}"></span>${name} — ${Math.round(val/totalRev*100)}%</span>`
+  ).join('');
+
+  /* Charts */
+  if(tChart)tChart.destroy();
+  if(pChart)pChart.destroy();
+  if(rChart)rChart.destroy();
+
+  tChart=new Chart(document.getElementById('trendChart'),{
+    type:'bar',
+    data:{labels:periods,datasets:[{label:'Revenue',data:periods.map(p=>Math.round(periodMap[p])),backgroundColor:'#185FA5',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:getCssVar('--text2'),maxRotation:45}},y:{grid:{color:'rgba(128,128,128,.12)'},ticks:{color:getCssVar('--text2'),callback:v=>fmt(v)}}}}
+  });
+
+  pChart=new Chart(document.getElementById('pieChart'),{
+    type:'doughnut',
+    data:{labels:topProds.slice(0,5).map(p=>p[0]),datasets:[{data:topProds.slice(0,5).map(p=>Math.round(p[1])),backgroundColor:COLORS,borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}
+  });
+
+  if(topRegs.length>0){
+    rChart=new Chart(document.getElementById('regionChart'),{
+      type:'bar',
+      data:{labels:topRegs.map(r=>r[0]),datasets:[{label:'Revenue',data:topRegs.map(r=>Math.round(r[1])),backgroundColor:'#3B6D11',borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(128,128,128,.12)'},ticks:{color:getCssVar('--text2'),callback:v=>fmt(v)}},y:{grid:{display:false},ticks:{color:getCssVar('--text2')}}}}
+    });
+  }
+
+  document.getElementById('data-label').textContent=parsedRows.length+' rows imported';
+  document.getElementById('period-label').textContent='Your data — '+periods.length+' periods';
+  setStep(3);
+  toast('Dashboard updated with your data!');
+}
+
+/* ── Sample dashboard (no import) ── */
+function showSampleDashboard(){
+  document.getElementById('quarter-filters').style.display='flex';
+  renderSample('Q1');
+  setStep(3);
+}
+
+function renderSample(key){
+  const d=SAMPLE_DATA[key];
+  const sign=v=>v>=0?'+':'';
+  document.getElementById('kpis').innerHTML=[
+    {lbl:'Total Revenue',val:'$'+d.rev+'M',chg:sign(d.chgR)+d.chgR+'% vs last period',up:d.chgR>=0},
+    {lbl:'Total Orders',val:d.orders.toLocaleString(),chg:sign(d.chgO)+d.chgO+'% vs last period',up:d.chgO>=0},
+    {lbl:'Avg Order Value',val:'$'+d.aov,chg:'',up:true},
+    {lbl:'Conversion Rate',val:d.conv+'%',chg:'',up:true},
+  ].map(k=>`<div class="kpi"><div class="kpi-lbl">${k.lbl}</div><div class="kpi-val">${k.val}</div>${k.chg?`<div class="kpi-chg ${k.up?'up':'dn'}">${k.up?'▲':'▼'} ${k.chg}</div>`:''}</div>`).join('');
+
+  const maxP=SAMPLE_PRODS[0].val;
+  document.getElementById('products').innerHTML=SAMPLE_PRODS.map((p,i)=>
+    `<div class="prod-row"><div class="prod-name">${p.name}</div><div class="bar-bg"><div class="bar-fill" style="width:${p.pct}%;background:${COLORS[i%COLORS.length]}"></div></div><div class="prod-val">$${p.val}M</div></div>`
+  ).join('');
+
+  document.getElementById('regions').innerHTML=SAMPLE_REGIONS.map(r=>
+    `<div class="reg-row"><div><div class="reg-name">${r.name}</div><div class="reg-rev">${r.rev}</div></div><span class="badge ${r.cls}">${r.growth}</span></div>`
+  ).join('');
+
+  document.getElementById('pie-legend').innerHTML=SAMPLE_PRODS.map((p,i)=>
+    `<span class="leg-item"><span class="leg-sq" style="background:${COLORS[i]}"></span>${p.name} — ${p.pct}%</span>`
+  ).join('');
+
+  if(tChart)tChart.destroy();
+  if(pChart)pChart.destroy();
+  if(rChart)rChart.destroy();
+
+  tChart=new Chart(document.getElementById('trendChart'),{
+    type:'bar',
+    data:{labels:d.months,datasets:[
+      {label:'Revenue',data:d.revenue,backgroundColor:'#185FA5',borderRadius:4,order:1},
+      {label:'Target',data:d.target,type:'line',borderColor:'#3B6D11',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#3B6D11',tension:.35,order:0}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#888'}},y:{grid:{color:'rgba(128,128,128,.12)'},ticks:{color:'#888',callback:v=>'$'+v}}}}
+  });
+
+  pChart=new Chart(document.getElementById('pieChart'),{
+    type:'doughnut',
+    data:{labels:SAMPLE_PRODS.map(p=>p.name),datasets:[{data:SAMPLE_PRODS.map(p=>p.pct),backgroundColor:COLORS,borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}
+  });
+
+  rChart=new Chart(document.getElementById('regionChart'),{
+    type:'bar',
+    data:{labels:SAMPLE_REGIONS.map(r=>r.name),datasets:[{label:'Revenue',data:[3.2,1.8,0.9,0.3,0.12].map(v=>Math.round(v*1e6)),backgroundColor:'#3B6D11',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(128,128,128,.12)'},ticks:{color:'#888',callback:v=>'$'+(v/1e6).toFixed(1)+'M'}},y:{grid:{display:false},ticks:{color:'#888'}}}}
+  });
+
+  document.getElementById('period-label').textContent='FY 2025 — '+key+(key==='All'?' Year':'');
+}
+
+function setFilter(el,key){
+  document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  curFilter=key;
+  if(parsedRows.length===0)renderSample(key);
+}
+
+/* ── Load sample CSV ── */
+function loadSample(){
+  const csv=`date,product,region,revenue,orders
+2025-01-10,Enterprise Suite,North America,42000,11
+2025-01-18,Pro License,Europe,17500,45
+2025-02-05,Hardware Kit,Asia Pacific,8800,23
+2025-02-14,Enterprise Suite,Europe,38000,9
+2025-03-02,Analytics Add-on,North America,12000,80
+2025-03-20,Pro License,Latin America,9200,28
+2025-04-11,Enterprise Suite,Asia Pacific,51000,13
+2025-04-25,Support Plan,North America,15000,60
+2025-05-08,Hardware Kit,Europe,7200,19
+2025-05-30,Pro License,North America,22000,55
+2025-06-12,Analytics Add-on,Asia Pacific,10500,70
+2025-06-28,Enterprise Suite,North America,64000,16
+2025-07-09,Support Plan,Europe,13000,52
+2025-07-22,Pro License,Asia Pacific,19000,47
+2025-08-14,Hardware Kit,North America,11200,30
+2025-08-27,Enterprise Suite,Europe,47000,12
+2025-09-05,Analytics Add-on,Latin America,8000,60
+2025-09-19,Pro License,North America,25000,63
+2025-10-03,Enterprise Suite,Asia Pacific,59000,15
+2025-10-17,Support Plan,North America,17000,68
+2025-11-08,Hardware Kit,Europe,9800,26
+2025-11-21,Enterprise Suite,North America,72000,18
+2025-12-04,Pro License,Europe,28000,70
+2025-12-15,Analytics Add-on,North America,14000,93`;
+  parseCSV(csv);
+  toast('Sample CSV loaded!');
+}
+
+/* ── Reset ── */
+function resetImport(){
+  parsedRows=[];headers=[];
+  if(tChart)tChart.destroy();
+  if(pChart)pChart.destroy();
+  if(rChart)rChart.destroy();
+  document.getElementById('fileInput').value='';
+  document.getElementById('data-label').textContent='Sample data';
+  document.getElementById('quarter-filters').style.display='none';
+  setStep(1);
+}
+
+/* ── Helper ── */
+function getCssVar(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim()||'#888';}
+
+/* ── Init ── */
+setStep(1);
+document.getElementById('quarter-filters').style.display='none';
+</script>
+</body>
+</html>
